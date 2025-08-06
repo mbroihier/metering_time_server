@@ -3,7 +3,9 @@
 #include "pico/cyw43_arch.h"
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
+#include "pico/util/datetime.h"
 #include "hardware/uart.h"
+#include "hardware/rtc.h"
 #include "TinyGPS.h"
 
 #define UART_ID uart0
@@ -25,6 +27,8 @@ char readchar() {
 
 int main() {
   bool state = false;
+  bool rtc_never_set = true;
+  uint64_t time_base = 0;
   const int LED = CYW43_WL_GPIO_LED_PIN;
   cyw43_arch_init();
   stdio_init_all();
@@ -75,6 +79,27 @@ int main() {
 	char ts[32];
 	sprintf(ts, "%02d/%02d/%02d %02d:%02d:%02d\n", month, day, year, hour, minute, second);
 	printf("%s", ts);
+	if (rtc_never_set) {
+	  rtc_never_set = false;
+	  datetime_t t = { .year = year,
+			   .month = month,
+			   .day = day,
+			   .hour = hour,
+			   .min = minute,
+			   .sec = second };
+	  rtc_init();
+	  rtc_set_datetime(&t);
+	  time_base = get_absolute_time();
+	} else {
+	  datetime_t t;
+	  rtc_get_datetime(&t);
+	  char ts[32];
+	  sprintf(ts, "%02d/%02d/%02d %02d:%02d:%02d expected\n", t.month, t.day, t.year, t.hour, t.min, t.sec);
+	  printf("%s", ts);
+	  uint64_t new_time_base = get_absolute_time();
+	  printf("delta time: %llu\n", new_time_base - time_base);
+	  time_base = new_time_base;
+	}	  
       }
     }
   }

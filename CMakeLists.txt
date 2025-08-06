@@ -7,7 +7,7 @@ pico_sdk_init()
 add_executable(${PROJECT} ${PROJECT}.cc
 			  TinyGPS.cc)
 add_executable("gpssim" gpssim.cc)
-target_link_libraries(${PROJECT} pico_stdlib pico_cyw43_arch_none)
+target_link_libraries(${PROJECT} pico_stdlib pico_cyw43_arch_none hardware_rtc)
 target_link_libraries(gpssim pico_stdlib pico_cyw43_arch_none)
 pico_add_extra_outputs(${PROJECT})
 pico_enable_stdio_usb(${PROJECT} 1)
