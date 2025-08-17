@@ -1,17 +1,22 @@
 #include <stdio.h>
 #include <time.h>
 #include "pico/cyw43_arch.h"
+#include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 #include "pico/util/datetime.h"
 #include "hardware/uart.h"
 #include "hardware/rtc.h"
+#include "ntp_util.h"
 #include "TinyGPS.h"
+#include "udp_client_server.h"
 
 #define UART_ID uart0
 #define BAUD_RATE 4800
 #define UART_TX_PIN 0
 #define UART_RX_PIN 1
+
+NTP_Util::NTPTime reference = {.seconds = 0, .fraction = 0};
 
 char readchar() {
   if (!uart_is_readable(UART_ID)) {
@@ -25,13 +30,12 @@ char readchar() {
   return c;
 }
 
-int main() {
+void core1_entry() {
+  // serial I/O to GPS
   bool state = false;
   bool rtc_never_set = true;
   uint64_t time_base = 0;
   const int LED = CYW43_WL_GPIO_LED_PIN;
-  cyw43_arch_init();
-  stdio_init_all();
   int year;
   uint8_t month, day, hour, minute, second, hundredths;
   uint32_t age;
@@ -90,6 +94,7 @@ int main() {
 	  rtc_init();
 	  rtc_set_datetime(&t);
 	  time_base = get_absolute_time();
+          reference = NTP_Util::make_reference_time();
 	} else {
 	  datetime_t t;
 	  rtc_get_datetime(&t);
@@ -106,6 +111,20 @@ int main() {
   printf("end of data detected\n");
   while (true) {
     sleep_ms(5000);
+  }
+}
+int main() {
+  cyw43_arch_init();
+  stdio_init_all();
+  UDP_Client_Server::setup_wifi();
+  UDP_Client_Server server;
+  server.setup_udp_server();
+  server.setup_udp_service_broadcast(123);
+  printf("time server setup complete, broadcasting service");
+  multicore_launch_core1(core1_entry);
+  while (true) {
+    server.run();
+    printf("Error, should not have come back\n");
   }
   return 0;
 }
