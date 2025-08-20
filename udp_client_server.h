@@ -65,11 +65,9 @@ class UDP_Client_Server {
   struct udp_pcb * service_pcb;
   struct udp_pcb * find_pcb;
 
-  uint32_t now();
-  uint64_t millis();
   static void packet_receive(void * arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t * addr,
                              uint16_t port);
-  void background();
+  void background(uint32_t &t);
 
  public:
   static void setup_wifi();

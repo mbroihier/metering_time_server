@@ -10,13 +10,12 @@
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
 
-#include "lwip/dns.h"
 #include "lwip/pbuf.h"
 #include "lwip/udp.h"
+#include "udp_client_server.h"
 
 typedef struct NTP_T_ {
     ip_addr_t ntp_server_address;
-    bool dns_request_sent;
     struct udp_pcb *ntp_pcb;
     absolute_time_t ntp_test_time;
     alarm_id_t ntp_resend_alarm;
@@ -32,9 +31,10 @@ typedef struct NTP_T_ {
 // Called with results of operation
 static void ntp_result(NTP_T* state, int status, time_t *result) {
     if (status == 0 && result) {
-        struct tm *utc = gmtime(result);
-        printf("got ntp response: %02d/%02d/%04d %02d:%02d:%02d\n", utc->tm_mday, utc->tm_mon + 1, utc->tm_year + 1900,
-               utc->tm_hour, utc->tm_min, utc->tm_sec);
+      uint32_t t = *result;
+      struct tm *utc = gmtime(result);
+      printf("got ntp response: %02d/%02d/%04d %02d:%02d:%02d\n", utc->tm_mday, utc->tm_mon + 1, utc->tm_year + 1900,
+             utc->tm_hour, utc->tm_min, utc->tm_sec);
     }
 
     if (state->ntp_resend_alarm > 0) {
@@ -42,7 +42,6 @@ static void ntp_result(NTP_T* state, int status, time_t *result) {
         state->ntp_resend_alarm = 0;
     }
     state->ntp_test_time = make_timeout_time_ms(NTP_TEST_TIME);
-    state->dns_request_sent = false;
 }
 
 static int64_t ntp_failed_handler(alarm_id_t id, void *user_data);
@@ -71,19 +70,6 @@ static int64_t ntp_failed_handler(alarm_id_t id, void *user_data)
     return 0;
 }
 
-// Call back with a DNS result
-static void ntp_dns_found(const char *hostname, const ip_addr_t *ipaddr, void *arg) {
-    NTP_T *state = (NTP_T*)arg;
-    if (ipaddr) {
-        state->ntp_server_address = *ipaddr;
-        printf("ntp address %s\n", ipaddr_ntoa(ipaddr));
-        ntp_request(state);
-    } else {
-        printf("ntp dns request failed\n");
-        ntp_result(state, -1, NULL);
-    }
-}
-
 // NTP data received
 static void ntp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
     NTP_T *state = (NTP_T*)arg;
@@ -96,11 +82,13 @@ static void ntp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_ad
         uint8_t seconds_buf[4] = {0};
         pbuf_copy_partial(p, seconds_buf, sizeof(seconds_buf), 40);
         uint32_t seconds_since_1900 = seconds_buf[0] << 24 | seconds_buf[1] << 16 | seconds_buf[2] << 8 | seconds_buf[3];
+        //uint32_t seconds_since_1900 = ntohl((uint32_t)seconds_buf);
         uint32_t seconds_since_1970 = seconds_since_1900 - NTP_DELTA;
         time_t epoch = seconds_since_1970;
         ntp_result(state, 0, &epoch);
     } else {
-        printf("invalid ntp response\n");
+      char *ip_str = ip4addr_ntoa(addr);
+      printf("invalid ntp response from %s length %d, mode %d, stratum %d\n", ip_str, p->tot_len, mode, stratum);
         ntp_result(state, -1, NULL);
     }
     pbuf_free(p);
@@ -124,44 +112,30 @@ static NTP_T* ntp_init(void) {
 }
 
 // Runs ntp test forever
-void run_ntp_test(void) {
+void run_ntp_test(ip_addr_t remote_ip_address) {
     NTP_T *state = ntp_init();
     if (!state)
         return;
+    state->ntp_server_address = remote_ip_address;
+    ntp_request(state);  //  do initial NTP request
+    bool message_sent = true;
+    uint64_t next_time_to_send = make_timeout_time_ms(30000);
+    uint64_t now = make_timeout_time_ms(0);
+    printf("next time to send (ms) is %llu, current time (ms) is %llu\n",
+           next_time_to_send, now);
+    cyw43_arch_poll();  // send the request
+    printf("NTP request sent\n");
     while(true) {
-        if (absolute_time_diff_us(get_absolute_time(), state->ntp_test_time) < 0 && !state->dns_request_sent) {
-            // Set alarm in case udp requests are lost
-            state->ntp_resend_alarm = add_alarm_in_ms(NTP_RESEND_TIME, ntp_failed_handler, state, true);
-
-            // cyw43_arch_lwip_begin/end should be used around calls into lwIP to ensure correct locking.
-            // You can omit them if you are in a callback from lwIP. Note that when using pico_cyw_arch_poll
-            // these calls are a no-op and can be omitted, but it is a good practice to use them in
-            // case you switch the cyw43_arch type later.
-            cyw43_arch_lwip_begin();
-            int err = dns_gethostbyname(NTP_SERVER, &state->ntp_server_address, ntp_dns_found, state);
-            cyw43_arch_lwip_end();
-
-            state->dns_request_sent = true;
-            if (err == ERR_OK) {
-                ntp_request(state); // Cached result
-            } else if (err != ERR_INPROGRESS) { // ERR_INPROGRESS means expect a callback
-                printf("dns request failed\n");
-                ntp_result(state, -1, NULL);
-            }
-        }
-#if PICO_CYW43_ARCH_POLL
-        // if you are using pico_cyw43_arch_poll, then you must poll periodically from your
-        // main loop (not from a timer interrupt) to check for Wi-Fi driver or lwIP work that needs to be done.
-        cyw43_arch_poll();
-        // you can poll as often as you like, however if you have nothing else to do you can
-        // choose to sleep until either a specified time, or cyw43_arch_poll() has work to do:
-        cyw43_arch_wait_for_work_until(state->dns_request_sent ? at_the_end_of_time : state->ntp_test_time);
-#else
-        // if you are not using pico_cyw43_arch_poll, then WiFI driver and lwIP work
-        // is done via interrupt in the background. This sleep is just an example of some (blocking)
-        // work you might be doing.
-        sleep_ms(1000);
-#endif
+      now = make_timeout_time_ms(0);
+      if (now > next_time_to_send) {
+        ntp_request(state);
+        printf("NTP request will be sent on next poll\n");
+        next_time_to_send = make_timeout_time_ms(30000);
+        printf("next time to send (ms) is %llu, current time (ms) is %llu\n",
+               next_time_to_send, now);
+      }
+      sleep_ms(100);
+      cyw43_arch_poll(); 
     }
     free(state);
 }
@@ -186,7 +160,11 @@ int main() {
 	sleep_ms(1000);
       }
     }
-    run_ntp_test();
+    UDP_Client_Server client;
+    client.setup_udp_find_service(123);
+    client.find_server();
+    printf("found ntp server\n");
+    run_ntp_test(client.get_remote_ip_addr());
     cyw43_arch_deinit();
     printf("done????\n");
     while(true) {

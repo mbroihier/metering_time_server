@@ -7,14 +7,15 @@ uint32_t NTP_Util::now() {
   datetime_t t;
   rtc_get_datetime(&t);
   struct tm timeinfo = {0};
-  timeinfo.tm_year = t.year - 1900;  // this will be in NTP epoch seconds
+
+  timeinfo.tm_year = t.year - 1900;  // oddly, this will be in Unix epoch seconds
   timeinfo.tm_mon = t.month - 1;
   timeinfo.tm_mday = t.day;
   timeinfo.tm_hour = t.hour;
   timeinfo.tm_min = t.min;
   timeinfo.tm_sec = t.sec;
   uint32_t n = mktime(&timeinfo);
-  return n;
+  return to_NTP_epoch(n);
 }
 
 NTP_Util::NTPTime NTP_Util::make_reference_time() {
@@ -67,5 +68,5 @@ void NTP_Util::translate_incoming_packet_to_outgoing_packet(NTPPacket *in, NTPPa
   ntp_reply.recv_time.fraction = htonl(ntp_reply.recv_time.fraction);
   ntp_reply.xmit_time.seconds  = htonl(ntp_reply.xmit_time.seconds);
   ntp_reply.xmit_time.fraction = htonl(ntp_reply.xmit_time.fraction);  
-  memcpy(&out, &ntp_reply, sizeof(ntp));
+  memcpy(out, &ntp_reply, sizeof(ntp));
 }

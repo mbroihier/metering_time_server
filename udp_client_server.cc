@@ -146,24 +146,6 @@ void UDP_Client_Server::setup_udp_find_service(uint16_t service) {
   return;
 }
 
-uint64_t UDP_Client_Server::millis() {
-  return to_ms_since_boot(get_absolute_time());
-}
-
-uint32_t UDP_Client_Server::now() {
-  datetime_t t;
-  rtc_get_datetime(&t);
-  struct tm timeinfo = {0};
-  timeinfo.tm_year = t.year - 1900;  // this will be in NTP epoch seconds
-  timeinfo.tm_mon = t.month - 1;
-  timeinfo.tm_mday = t.day;
-  timeinfo.tm_hour = t.hour;
-  timeinfo.tm_min = t.min;
-  timeinfo.tm_sec = t.sec;
-  uint32_t n = mktime(&timeinfo);
-  return n;
-}
-
 //---------------------------------------------------------------------- */
 //
 //
@@ -227,10 +209,13 @@ void UDP_Client_Server::packet_receive(void * arg, struct udp_pcb *pcb, struct p
 //         Mark Broihier
 //
 //---------------------------------------------------------------------- */
-void UDP_Client_Server::background() {
-  (reinterpret_cast<uint16_t *>(packetBufferT))[0] = 123;
-  broadcast_service(reinterpret_cast<uint8_t *>(packetBufferT), 2);
-  sleep_ms(5000);
+void UDP_Client_Server::background(uint32_t &last_time_broadcast) {
+  if (NTP_Util::now() - last_time_broadcast > 30) {
+    (reinterpret_cast<uint16_t *>(packetBufferT))[0] = UDP_PORT;
+    broadcast_service(reinterpret_cast<uint8_t *>(packetBufferT), 2);
+    last_time_broadcast = NTP_Util::now();
+  }
+  sleep_ms(10);
 }
 //---------------------------------------------------------------------- */
 //
@@ -250,28 +235,35 @@ void UDP_Client_Server::run() {
   cyw43_arch_lwip_end();
   printf("udp server ready\n");
   int old_packet_count = context_info.rx_cnt;
+  uint32_t last_time_broadcast = 0;
   NTP_Util::NTPTime packet_receive_time = NTP_Util::make_reference_time();
   while (true) {
     while (old_packet_count == context_info.rx_cnt) {
       cyw43_arch_poll();  // see if there is a udp packet
       packet_receive_time = NTP_Util::make_reference_time();
-      background();
-      sleep_ms(10);
+      background(last_time_broadcast);
     }
     old_packet_count = context_info.rx_cnt;
     NTP_Util::translate_incoming_packet_to_outgoing_packet((NTP_Util::NTPPacket *)packetBufferR,
                                                            (NTP_Util::NTPPacket *)packetBufferT,
                                                            reference, packet_receive_time);
+    printf("packetBufferT\n");
+    uint8_t * p = (uint8_t *)packetBufferT;
+    for (int i = 0; i < 48; i++) {
+      printf("%2.2x ", *p++);
+    }
+    printf("packetBufferT\n");
     udp_pcb *tpcb = udp_new();
     struct pbuf *reply_pbuf = pbuf_alloc(PBUF_TRANSPORT, sizeof(packetBufferT), PBUF_RAM);
     reply_pbuf->next = 0;
-    reply_pbuf->payload = &packetBufferT;
+    //reply_pbuf->payload = &packetBufferT;
+    memcpy(reply_pbuf->payload, packetBufferT, sizeof(NTP_Util::NTPPacket));
     reply_pbuf->tot_len = sizeof(NTP_Util::NTPPacket);
     reply_pbuf->len = sizeof(NTP_Util::NTPPacket);
+    printf("to be sent NTP packet of size %d\n", reply_pbuf->tot_len);
     cyw43_arch_lwip_begin();
     udp_sendto(state->recv_data.pcb, reply_pbuf, &context_info.remote_ip_addr, context_info.remote_port);
     cyw43_arch_lwip_end();
-    printf("sent acknowledge\n");
     pbuf_free(reply_pbuf);
   }
 }

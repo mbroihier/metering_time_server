@@ -48,6 +48,16 @@ void core1_entry() {
   bool encoder_state = false;
   sleep_ms(5000);
   printf("Initialized - UART set to: %d baud\n", baud);
+  datetime_t t = { .year = 2025,
+                   .month = 1,
+                   .day = 1,
+                   .hour = 0,
+                   .min = 0,
+                   .sec = 0 };
+  rtc_init();
+  rtc_set_datetime(&t);
+  time_base = get_absolute_time();
+  reference = NTP_Util::make_reference_time();
   if (uart_is_enabled(UART_ID)) {
     printf("UART is ok\n");
     char output = 'C';
@@ -91,7 +101,6 @@ void core1_entry() {
 			   .hour = hour,
 			   .min = minute,
 			   .sec = second };
-	  rtc_init();
 	  rtc_set_datetime(&t);
 	  time_base = get_absolute_time();
           reference = NTP_Util::make_reference_time();

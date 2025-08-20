@@ -17,7 +17,6 @@
 #define NTP_set_leap_indicator(value)    ((value&0x03)<<6)
 #define NTP_set_version(value)  ((value&0x07)<<3)
 #define NTP_set_mode(value)  ((value&0x07))
-#define UDP_TX_PACKET_MAX_SIZE 4096
 
 #define LI_NONE         0
 #define LI_SIXTY_ONE    1
@@ -52,17 +51,17 @@ public:
   // NTP data structures
   typedef struct ntp_packet
   {
-    uint8_t  flags;
-    uint8_t  stratum;
-    uint8_t  poll;
-    int8_t   precision;
-    uint32_t delay;
-    uint32_t dispersion;
-    uint8_t  ref_id[4];
-    NTPTime  ref_time;
-    NTPTime  orig_time;
-    NTPTime  recv_time;
-    NTPTime  xmit_time;
+    uint8_t  flags;         // 0
+    uint8_t  stratum;       // 1
+    uint8_t  poll;          // 2
+    int8_t   precision;     // 3
+    uint32_t delay;         // 4
+    uint32_t dispersion;    // 8
+    uint8_t  ref_id[4];     // 12
+    NTPTime  ref_time;      // 16
+    NTPTime  orig_time;     // 24
+    NTPTime  recv_time;     // 32
+    NTPTime  xmit_time;     // 40
   } NTPPacket;
 
   static uint32_t now();
