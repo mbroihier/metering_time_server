@@ -215,7 +215,7 @@ void UDP_Client_Server::background(uint32_t &last_time_broadcast) {
     broadcast_service(reinterpret_cast<uint8_t *>(packetBufferT), 2);
     last_time_broadcast = NTP_Util::now();
   }
-  sleep_ms(10);
+  sleep_ms(100);  // started at 10
 }
 //---------------------------------------------------------------------- */
 //
@@ -239,7 +239,9 @@ void UDP_Client_Server::run() {
   NTP_Util::NTPTime packet_receive_time = NTP_Util::make_reference_time();
   while (true) {
     while (old_packet_count == context_info.rx_cnt) {
+      cyw43_arch_lwip_begin();
       cyw43_arch_poll();  // see if there is a udp packet
+      cyw43_arch_lwip_end();
       packet_receive_time = NTP_Util::make_reference_time();
       background(last_time_broadcast);
     }
@@ -289,7 +291,9 @@ void UDP_Client_Server::find_server() {
   int old_packet_count = context_info.rx_cnt;
   while (true) {
     while (old_packet_count == context_info.rx_cnt) {
+      cyw43_arch_lwip_begin();
       cyw43_arch_poll();  // see if there is a udp packet
+      cyw43_arch_lwip_end();
       sleep_ms(10);
     }
     old_packet_count = context_info.rx_cnt;
@@ -334,8 +338,8 @@ void UDP_Client_Server::broadcast_service(uint8_t *buffer, int buffer_size) {
   ip4addr_aton("255.255.255.255", &remote_ip_address);
   cyw43_arch_lwip_begin();
   int err = udp_sendto(service_pcb, send_pbuf, &remote_ip_address, 9720);
-  cyw43_arch_lwip_end();
   cyw43_arch_poll();  // do a poll to send?
+  cyw43_arch_lwip_end();
   printf("sent packet to %s port %d, status: %d\n", ip4addr_ntoa(&remote_ip_address), 9720,
          err);
   pbuf_free(send_pbuf);
@@ -365,13 +369,15 @@ void UDP_Client_Server::send_packet(ip_addr_t remote_ip_address, uint16_t remote
   printf("sending message: %s", send_pbuf->payload);
   cyw43_arch_lwip_begin();
   int err = udp_sendto(client_pcb, send_pbuf, &remote_ip_address, remote_port);
-  cyw43_arch_lwip_end();
   cyw43_arch_poll();  // do a poll to send?
+  cyw43_arch_lwip_end();
   printf("sent packet to %s port %d, status: %d\n", ip4addr_ntoa(&remote_ip_address), remote_port,
          err);
   if (reply_timeout) {
     while ((old_packet_count == context_info.rx_cnt) && (reply_timeout-- > 0)) {
+      cyw43_arch_lwip_begin();
       cyw43_arch_poll();  // see if there is a udp packet
+      cyw43_arch_lwip_end();
       sleep_ms(10);
     }
     if (old_packet_count != context_info.rx_cnt) {

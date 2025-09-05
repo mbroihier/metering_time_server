@@ -19,21 +19,28 @@
 NTP_Util::NTPTime reference = {.seconds = 0, .fraction = 0};
 
 char readchar() {
+  /*
   if (!uart_is_readable(UART_ID)) {
     do {
-      printf("not ready, sleeping\n");
+      //printf("not ready, sleeping\n");
       sleep_ms(50);
     } while (!uart_is_readable(UART_ID));
   }
+  
   char c = uart_getc(UART_ID);
-  //printf("Got: %c\n", c);
+  */
+  char c;
+  do {
+    c = stdio_getchar_timeout_us(1000);
+  } while (c == PICO_ERROR_TIMEOUT || c == 0xfe);
+  printf("Got: %c %2.2x\n", c, c);
   return c;
 }
 
+bool rtc_never_set = true;
 void core1_entry() {
   // serial I/O to GPS
-  bool state = false;
-  bool rtc_never_set = true;
+  bool state = true;
   uint64_t time_base = 0;
   const int LED = CYW43_WL_GPIO_LED_PIN;
   int year;
@@ -132,6 +139,10 @@ int main() {
   printf("time server setup complete, broadcasting service");
   multicore_launch_core1(core1_entry);
   while (true) {
+    while(rtc_never_set) {
+      sleep_ms(50);
+    }
+    printf("Starting NTP server\n");
     server.run();
     printf("Error, should not have come back\n");
   }
