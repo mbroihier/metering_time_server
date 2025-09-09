@@ -215,7 +215,7 @@ void UDP_Client_Server::background(uint32_t &last_time_broadcast) {
     broadcast_service(reinterpret_cast<uint8_t *>(packetBufferT), 2);
     last_time_broadcast = NTP_Util::now();
   }
-  sleep_ms(100);  // started at 10
+  sleep_ms(10);  // started at 10
 }
 //---------------------------------------------------------------------- */
 //
@@ -226,6 +226,9 @@ void UDP_Client_Server::background(uint32_t &last_time_broadcast) {
 //         Mark Broihier
 //
 //---------------------------------------------------------------------- */
+#if BACKGROUND
+#include "P2303_Driver.h"
+#endif
 void UDP_Client_Server::run() {
   extern NTP_Util::NTPTime reference;
   udp_rxdata context_info;
@@ -243,18 +246,23 @@ void UDP_Client_Server::run() {
       cyw43_arch_poll();  // see if there is a udp packet
       cyw43_arch_lwip_end();
       packet_receive_time = NTP_Util::make_reference_time();
+ #if BACKGROUND
+      //tuh_task();
+ #endif
       background(last_time_broadcast);
     }
     old_packet_count = context_info.rx_cnt;
     NTP_Util::translate_incoming_packet_to_outgoing_packet((NTP_Util::NTPPacket *)packetBufferR,
                                                            (NTP_Util::NTPPacket *)packetBufferT,
                                                            reference, packet_receive_time);
+    /*
     printf("packetBufferT\n");
     uint8_t * p = (uint8_t *)packetBufferT;
     for (int i = 0; i < 48; i++) {
       printf("%2.2x ", *p++);
     }
     printf("packetBufferT\n");
+    */
     udp_pcb *tpcb = udp_new();
     struct pbuf *reply_pbuf = pbuf_alloc(PBUF_TRANSPORT, sizeof(packetBufferT), PBUF_RAM);
     reply_pbuf->next = 0;
@@ -262,7 +270,7 @@ void UDP_Client_Server::run() {
     memcpy(reply_pbuf->payload, packetBufferT, sizeof(NTP_Util::NTPPacket));
     reply_pbuf->tot_len = sizeof(NTP_Util::NTPPacket);
     reply_pbuf->len = sizeof(NTP_Util::NTPPacket);
-    printf("to be sent NTP packet of size %d\n", reply_pbuf->tot_len);
+    //printf("to be sent NTP packet of size %d\n", reply_pbuf->tot_len);
     cyw43_arch_lwip_begin();
     udp_sendto(state->recv_data.pcb, reply_pbuf, &context_info.remote_ip_addr, context_info.remote_port);
     cyw43_arch_lwip_end();
