@@ -240,14 +240,26 @@ void UDP_Client_Server::run() {
   int old_packet_count = context_info.rx_cnt;
   uint32_t last_time_broadcast = 0;
   NTP_Util::NTPTime packet_receive_time = NTP_Util::make_reference_time();
+  int loop_mod = 4;  // every fourth loop, read USB
+  int count = 0;
   while (true) {
     while (old_packet_count == context_info.rx_cnt) {
+      printf("trace: %llu, 0\n", get_absolute_time());
+      printf("trace: %llu, 1\n", get_absolute_time());
       cyw43_arch_lwip_begin();
       cyw43_arch_poll();  // see if there is a udp packet
       cyw43_arch_lwip_end();
+      printf("trace: %llu, 1\n", get_absolute_time());
+      printf("trace: %llu, 0\n", get_absolute_time());
       packet_receive_time = NTP_Util::make_reference_time();
  #if BACKGROUND
-      //tuh_task();
+      if (((++count) % loop_mod) == 5 && (128 > queue_get_level(&P2303_Driver::get_singleton()->queue))) {
+        printf("trace: %llu, 0\n", get_absolute_time());
+        printf("trace: %llu, 2\n", get_absolute_time());
+        tuh_task();
+        printf("trace: %llu, 2\n", get_absolute_time());
+        printf("trace: %llu, 0\n", get_absolute_time());
+      }
  #endif
       background(last_time_broadcast);
     }

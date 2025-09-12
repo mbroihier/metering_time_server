@@ -98,23 +98,27 @@ void core1_entry() {
 	  char ts[32];
 	  sprintf(ts, "%02d/%02d/%02d %02d:%02d:%02d expected\n", t.month, t.day, t.year, t.hour, t.min, t.sec);
 	  printf("%s", ts);
+	  uint64_t new_time_base = get_absolute_time();
+          uint64_t delta_time = new_time_base - time_base;
+	  printf("delta time: %llu\n", delta_time);
+	  time_base = new_time_base;
           if (t.month == month && t.day == day && t.year == year && t.hour == hour && t.min == minute &&
               t.sec == second) {
             ready_count++;
-            rtc_ready = ready_count >= 3;
+            rtc_ready |= ready_count >= 3;
           } else {
             ready_count = 0;
-            datetime_t t = { .year = year,
-                             .month = month,
-                             .day = day,
-                             .hour = hour,
-                             .min = minute,
-                             .sec = second };
-            rtc_set_datetime(&t);  // reset rtc
+            if (delta_time > 197000 && delta_time < 2200000) { // if not stale
+              datetime_t t = { .year = year,
+                               .month = month,
+                               .day = day,
+                               .hour = hour,
+                               .min = minute,
+                               .sec = second };
+              rtc_set_datetime(&t);  // reset rtc
+              printf("rtc updated\n");
+            }
           } 
-	  uint64_t new_time_base = get_absolute_time();
-	  printf("delta time: %llu\n", new_time_base - time_base);
-	  time_base = new_time_base;
 	}	  
       }
     }
