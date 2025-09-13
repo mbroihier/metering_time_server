@@ -31,14 +31,12 @@ bool rtc_never_set = true;
 bool rtc_ready = false;
 void core1_entry() {
   // process USB characters from a P2303 device attached to a GPS 
-  bool state = true;
   uint64_t time_base = 0;
   const int LED = CYW43_WL_GPIO_LED_PIN;
   int year;
   uint8_t month, day, hour, minute, second, hundredths;
   uint32_t age;
   TinyGPS gpsD;
-  //cyw43_arch_gpio_put(LED, state);
   bool encoder_state = false;
   sleep_ms(5000);
   datetime_t t = { .year = 2025,
@@ -66,8 +64,6 @@ void core1_entry() {
     eof[1] = eof[2];
     eof[2] = eof[3];
     eof[3] = c;
-    state = ! state;
-    //cyw43_arch_gpio_put(LED, state);
     if (strncmp(eof, "EOF", 3) == 0) {
       end_of_file = true;
       encoder_state = true;
@@ -136,138 +132,10 @@ void core1_entry() {
 P2303_Driver * P2303_Driver::singleton = 0;
 int main() {
   stdio_init_all();
-  for (int i = 0; i < 12; i++) {
-    if (dma_channel_is_claimed(i)) {
-      printf("DMA %d is claimed\n");
-    } else {
-      printf("DMA %d is available\n");
-    }
-  }
-  if (pio_sm_is_claimed(PIO0, 0)) {
-    printf("PIO0, 0 is claimed\n");
-  } else {
-    printf("PIO0, 0 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 1)) {
-    printf("PIO0, 1 is claimed\n");
-  } else {
-    printf("PIO0, 1 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 2)) {
-    printf("PIO0, 2 is claimed\n");
-  } else {
-    printf("PIO0, 2 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 3)) {
-    printf("PIO0, 3 is claimed\n");
-  } else {
-    printf("PIO0, 3 is available\n");
-  }
   cyw43_arch_init();
-  if (pio_sm_is_claimed(PIO0, 0)) {
-    printf("PIO0, 0 is claimed\n");
-  } else {
-    printf("PIO0, 0 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 1)) {
-    printf("PIO0, 1 is claimed\n");
-  } else {
-    printf("PIO0, 1 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 2)) {
-    printf("PIO0, 2 is claimed\n");
-  } else {
-    printf("PIO0, 2 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 3)) {
-    printf("PIO0, 3 is claimed\n");
-  } else {
-    printf("PIO0, 3 is available\n");
-  }
   UDP_Client_Server::setup_wifi();
-  for (int i = 0; i < 12; i++) {
-    if (dma_channel_is_claimed(i)) {
-      printf("DMA %d is claimed\n");
-    } else {
-      printf("DMA %d is available\n");
-    }
-  }
-  if (pio_sm_is_claimed(PIO0, 0)) {
-    printf("PIO0, 0 is claimed\n");
-  } else {
-    printf("PIO0, 0 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 1)) {
-    printf("PIO0, 1 is claimed\n");
-  } else {
-    printf("PIO0, 1 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 2)) {
-    printf("PIO0, 2 is claimed\n");
-  } else {
-    printf("PIO0, 2 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 3)) {
-    printf("PIO0, 3 is claimed\n");
-  } else {
-    printf("PIO0, 3 is available\n");
-  }
   P2303_Driver gps_driver;  // init driver
-  for (int i = 0; i < 12; i++) {
-    if (dma_channel_is_claimed(i)) {
-      printf("DMA %d is claimed\n");
-    } else {
-      printf("DMA %d is available\n");
-    }
-  }
-  if (pio_sm_is_claimed(PIO0, 0)) {
-    printf("PIO0, 0 is claimed\n");
-  } else {
-    printf("PIO0, 0 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 1)) {
-    printf("PIO0, 1 is claimed\n");
-  } else {
-    printf("PIO0, 1 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 2)) {
-    printf("PIO0, 2 is claimed\n");
-  } else {
-    printf("PIO0, 2 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 3)) {
-    printf("PIO0, 3 is claimed\n");
-  } else {
-    printf("PIO0, 3 is available\n");
-  }
   tuh_init(BOARD_TUH_RHPORT);  // once the driver is instantiated, we can start the USB host stack
-  for (int i = 0; i < 12; i++) {
-    if (dma_channel_is_claimed(i)) {
-      printf("DMA %d is claimed\n");
-    } else {
-      printf("DMA %d is available\n");
-    }
-  }
-  if (pio_sm_is_claimed(PIO0, 0)) {
-    printf("PIO0, 0 is claimed\n");
-  } else {
-    printf("PIO0, 0 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 1)) {
-    printf("PIO0, 1 is claimed\n");
-  } else {
-    printf("PIO0, 1 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 2)) {
-    printf("PIO0, 2 is claimed\n");
-  } else {
-    printf("PIO0, 2 is available\n");
-  }
-  if (pio_sm_is_claimed(PIO0, 3)) {
-    printf("PIO0, 3 is claimed\n");
-  } else {
-    printf("PIO0, 3 is available\n");
-  }
   UDP_Client_Server server;    // make a NTP server
   server.setup_udp_server();   // do the setup
   server.setup_udp_service_broadcast(123);  // broadcast its location on the local network

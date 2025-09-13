@@ -244,21 +244,13 @@ void UDP_Client_Server::run() {
   int count = 0;
   while (true) {
     while (old_packet_count == context_info.rx_cnt) {
-      printf("trace: %llu, 0\n", get_absolute_time());
-      printf("trace: %llu, 1\n", get_absolute_time());
       cyw43_arch_lwip_begin();
       cyw43_arch_poll();  // see if there is a udp packet
       cyw43_arch_lwip_end();
-      printf("trace: %llu, 1\n", get_absolute_time());
-      printf("trace: %llu, 0\n", get_absolute_time());
       packet_receive_time = NTP_Util::make_reference_time();
  #if BACKGROUND
       if (((++count) % loop_mod) == 0 && (128 > queue_get_level(&P2303_Driver::get_singleton()->queue))) {
-        printf("trace: %llu, 0\n", get_absolute_time());
-        printf("trace: %llu, 2\n", get_absolute_time());
         tuh_task();
-        printf("trace: %llu, 2\n", get_absolute_time());
-        printf("trace: %llu, 0\n", get_absolute_time());
       }
  #endif
       background(last_time_broadcast);
