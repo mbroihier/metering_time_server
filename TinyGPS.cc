@@ -224,7 +224,8 @@ bool TinyGPS::term_complete()
     if (!gpsstrcmp(_term, _GPRMC_TERM))
       _sentence_type = _GPS_SENTENCE_GPRMC;
     else if (!gpsstrcmp(_term, _GPGGA_TERM))
-      _sentence_type = _GPS_SENTENCE_GPGGA;
+      // _sentence_type = _GPS_SENTENCE_GPGGA;  ignore so we get updates about every 2 seconds
+      _sentence_type = _GPS_SENTENCE_OTHER;
     else
       _sentence_type = _GPS_SENTENCE_OTHER;
     return false;

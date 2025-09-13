@@ -253,7 +253,7 @@ void UDP_Client_Server::run() {
       printf("trace: %llu, 0\n", get_absolute_time());
       packet_receive_time = NTP_Util::make_reference_time();
  #if BACKGROUND
-      if (((++count) % loop_mod) == 5 && (128 > queue_get_level(&P2303_Driver::get_singleton()->queue))) {
+      if (((++count) % loop_mod) == 0 && (128 > queue_get_level(&P2303_Driver::get_singleton()->queue))) {
         printf("trace: %llu, 0\n", get_absolute_time());
         printf("trace: %llu, 2\n", get_absolute_time());
         tuh_task();
