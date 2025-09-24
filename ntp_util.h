@@ -32,7 +32,7 @@
 #define MODE_CONTROL    6
 #define MODE_PRIVATE    7
 
-#define NTP_VERSION     4
+#define NTP_VERSION     3
 
 #define REF_ID          "GPS "
 

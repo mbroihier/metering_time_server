@@ -49,8 +49,8 @@ void NTP_Util::translate_incoming_packet_to_outgoing_packet(NTPPacket *in, NTPPa
   ntp_reply.delay = 1;      //(uint32)(0.000001 * 65536.0);
   ntp_reply.dispersion = 1; //(uint32_t)(_gps.getDispersion() * 65536.0); // TODO: pre-calculate this?
   strncpy((char*)ntp_reply.ref_id, REF_ID, sizeof(in->ref_id));
-  //ntp_reply.orig_time.seconds = ntp_reply.xmit_time.seconds;     leave this alone, it is from client
-  //ntp_reply.orig_time.fraction = ntp_reply.xmit_time.fraction;
+  ntp_reply.orig_time.seconds = ntp_reply.xmit_time.seconds;     // WHY?
+  ntp_reply.orig_time.fraction = ntp_reply.xmit_time.fraction;
   ntp_reply.recv_time.seconds  = packet_receive_time.seconds;
   ntp_reply.recv_time.fraction  = packet_receive_time.fraction;
   ntp_reply.ref_time.seconds = reference.seconds;

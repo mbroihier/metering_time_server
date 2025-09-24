@@ -89,6 +89,7 @@ void core1_entry() {
 			   .sec = second };
 	  rtc_set_datetime(&t);
 	  time_base = get_absolute_time();
+          sleep_us(64);  // delay long enough for hardware to be updated
           reference = NTP_Util::make_reference_time();
 	} else {
 	  datetime_t t;
@@ -114,6 +115,8 @@ void core1_entry() {
                                .min = minute,
                                .sec = second };
               rtc_set_datetime(&t);  // reset rtc
+              sleep_us(64);  // delay long enough for hardware to be updated
+              reference = NTP_Util::make_reference_time();
               printf("rtc updated\n");
             }
           } 

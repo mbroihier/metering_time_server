@@ -276,7 +276,9 @@ void UDP_Client_Server::run() {
     reply_pbuf->len = sizeof(NTP_Util::NTPPacket);
     //printf("to be sent NTP packet of size %d\n", reply_pbuf->tot_len);
     cyw43_arch_lwip_begin();
-    udp_sendto(state->recv_data.pcb, reply_pbuf, &context_info.remote_ip_addr, context_info.remote_port);
+    int err = udp_sendto(state->recv_data.pcb, reply_pbuf, &context_info.remote_ip_addr, context_info.remote_port);
+    printf("sent packet to %s port %d, status: %d\n", ip4addr_ntoa(&context_info.remote_ip_addr),
+           context_info.remote_port, err);
     cyw43_arch_lwip_end();
     pbuf_free(reply_pbuf);
   }
