@@ -21,6 +21,7 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
+//#include <cstdio>
 #include "TinyGPS.h"
 
 #define _GPRMC_TERM   "GPRMC"
@@ -75,6 +76,7 @@ bool TinyGPS::encode(char c)
     {
       _term[_term_offset] = 0;
       valid_sentence = term_complete();
+      //printf("Executed term_complete\n");
     }
     ++_term_number;
     _term_offset = 0;

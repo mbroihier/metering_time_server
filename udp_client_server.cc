@@ -226,9 +226,6 @@ void UDP_Client_Server::background(uint32_t &last_time_broadcast) {
 //         Mark Broihier
 //
 //---------------------------------------------------------------------- */
-#if BACKGROUND
-#include "P2303_Driver.h"
-#endif
 void UDP_Client_Server::run() {
   extern NTP_Util::NTPTime reference;
   udp_rxdata context_info;
@@ -248,11 +245,6 @@ void UDP_Client_Server::run() {
       cyw43_arch_poll();  // see if there is a udp packet
       cyw43_arch_lwip_end();
       packet_receive_time = NTP_Util::make_reference_time();
- #if BACKGROUND
-      if (((++count) % loop_mod) == 0 && (128 > queue_get_level(&P2303_Driver::get_singleton()->queue))) {
-        tuh_task();
-      }
- #endif
       background(last_time_broadcast);
     }
     old_packet_count = context_info.rx_cnt;

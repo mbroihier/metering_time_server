@@ -6,7 +6,7 @@
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
 #include "lwip/udp.h"
-#include "TinyGPS.h"
+//#include "TinyGPSPlus.h"
 #ifndef NTP_UTIL_H_
 #define NTP_UTIL_H_
 
