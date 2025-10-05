@@ -7,7 +7,6 @@ pico_sdk_init()
 add_executable(${PROJECT} ${PROJECT}.cc
 			  ntp_util.cc
                           udp_client_server.cc
-			  TinyGPS.cc
                           TinyGPS++.cc)
 target_compile_definitions(${PROJECT} PRIVATE
         WIFI_SSID=\"${WIFI_SSID}\"

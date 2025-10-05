@@ -5,6 +5,7 @@
 #include "pico/stdlib.h"
 
 #include "pico/util/datetime.h"
+#include "pico/util/queue.h"
 #include "hardware/uart.h"
 #include "hardware/pio.h"
 #include "hardware/dma.h"
@@ -22,36 +23,22 @@
 uint8_t cs(char c, uint8_t oldCS) {
   return oldCS ^= c;
 }
-
-static char gps_input[4096];
-static char * head = &gps_input[0];
-static char * tail = &gps_input[0];
+static queue_t queue;
 static bool full = false;
-static char * const end_of_buffer = &gps_input[4096];
+
 // RX interrupt handler
 void on_uart_rx() {
+  char r = 'X';
     while (uart_is_readable(UART_ID)) {
-        uint8_t ch = uart_getc(UART_ID);
-        *head++ = ch;
-        if (head == tail) full = true;
-        if (head == end_of_buffer) {
-          head = &gps_input[0];
-        }
+      uint8_t ch = uart_getc(UART_ID);
+      if (!queue_try_add(&queue, &ch)) {
+        full = true;
+      } else {
+        full = false;
+      }
     }
 }
   
-char readchar() {
-  if (!uart_is_readable(UART_ID)) {
-    do {
-      //printf("not ready, sleeping\n");
-      sleep_ms(50);
-    } while (!uart_is_readable(UART_ID));
-  }
-  
-  char c = uart_getc(UART_ID);
-  printf("%c", c);
-  return c;
-}
 NTP_Util::NTPTime reference = {.seconds = 0, .fraction = 0};
 bool rtc_never_set = true;
 bool rtc_ready = false;
@@ -81,40 +68,10 @@ void core1_entry() {
   irq_set_exclusive_handler(UART_IRQ, on_uart_rx);
   irq_set_enabled(UART_IRQ, true);
 
-  // Now enable the UART to send interrupts - RX only
-  uart_set_irq_enables(UART_ID, true, false);
   if (uart_is_enabled(UART_ID)) {
     printf("UART is ok\n");
     uart_putc(UART_ID, '\n');
     uart_putc(UART_ID, '\n');
-    /*
-    char * command = "$PCAS04,7*";
-    uint8_t sum = 0;
-    for (int i = 0; i < strlen(command); i++) {
-      if (command[i] != '$' && command[i] != '*') {
-        sum = cs(command[i], sum);
-      }
-    }
-    char fullCommand[128];
-    int endOfCommand = sprintf(fullCommand, "%s%2.2X\n", command, sum);
-    fullCommand[endOfCommand] = 0;
-    printf("Sending %s to GPS\n");
-    uart_puts(UART_ID, fullCommand);
-    command = "$PCAS01,1*";
-    sum = 0;
-    for (int i = 0; i < strlen(command); i++) {
-      if (command[i] != '$' && command[i] != '*') {
-        sum = cs(command[i], sum);
-      }
-    }
-    endOfCommand = sprintf(fullCommand, "%s%2.2X\n", command, sum);
-    fullCommand[endOfCommand] = 0;
-    */
-    //printf("Sending %s to GPS\n");
-    //uart_puts(UART_ID, fullCommand);
-    //baud = uart_init(UART_ID, 9600);
-    //sleep_ms(1000);
-    //printf("ReInitialized - UART set to: %d baud\n", baud);
   } else {
     printf("UART is not enabled!\n");
   }
@@ -125,20 +82,18 @@ void core1_entry() {
   sleep_ms(5000);
   char eof[4];
   bool end_of_file = false;
-  char c;
+  char c = 'A';
   int ready_count = 0;
+  // Now enable the UART to send interrupts - RX only
+  uart_set_irq_enables(UART_ID, true, false);
   while (! end_of_file) {
-    while (!full && head == tail) {
-      sleep_us(64);
+    while (!queue_try_remove(&queue, &c)) {
+      //printf("-");
     }
     if (full) {
       printf("gps input buffer full!!\n");
     }
-    c = *tail++;
     //printf("%c", c);
-    if (tail == end_of_buffer) {
-      tail = &gps_input[0];
-    }
     eof[0] = eof[1];
     eof[1] = eof[2];
     eof[2] = eof[3];
@@ -214,6 +169,7 @@ void core1_entry() {
 int main() {
   stdio_init_all();
   cyw43_arch_init();
+  queue_init(&queue, 1, 4096);
   UDP_Client_Server::setup_wifi();
   UDP_Client_Server server;    // make a NTP server
   server.setup_udp_server();   // do the setup
