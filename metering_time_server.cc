@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <time.h>
 #include "pico/cyw43_arch.h"
+#include "dhcpserver.h"
+#include "dnsserver.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 
@@ -13,7 +15,8 @@
 #include "ntp_util.h"
 #include "TinyGPSPlus.h"
 #include "udp_client_server.h"
-
+#include "Read_Temperature.h"
+#include "Meter.h"
 
 #define UART_ID uart0
 #define BAUD_RATE 115200
@@ -88,6 +91,7 @@ void core1_entry() {
   uart_set_irq_enables(UART_ID, true, false);
   while (! end_of_file) {
     while (!queue_try_remove(&queue, &c)) {
+      sleep_us(150);  // tweak load on system by resting between messages
       //printf("-");
     }
     if (full) {
@@ -164,23 +168,58 @@ void core1_entry() {
     sleep_ms(5000);
   }
 }
+
 #define PIO0 0
 #define PIO1 1
+
+Meter * Meter::singleton = 0;
+
 int main() {
   stdio_init_all();
-  cyw43_arch_init();
+  sleep_ms(2000);
+  if (cyw43_arch_init()) {
+    printf("failed to initialize CYW43 architecture\n");
+    return 1;
+  }
   queue_init(&queue, 1, 4096);
-  UDP_Client_Server::setup_wifi();
-  UDP_Client_Server server;    // make a NTP server
+  
+  const char *ap_name = WIFI_SSID;
+  const char *password = WIFI_PASSWORD;
+  const uint PORT = UDP_PORT;
+
+  cyw43_arch_enable_ap_mode(ap_name, password, CYW43_AUTH_WPA2_AES_PSK);
+
+  ip4_addr_t mask;
+  ip4_addr_t gw;
+
+  IP4_ADDR(&gw, 192, 168, 4, 1);
+  IP4_ADDR(&mask, 255, 255, 255, 0);
+
+  dhcp_server_t dhcp_server;
+  dhcp_server_init(&dhcp_server, &gw, &mask);
+
+  dns_server_t dns_server;
+  dns_server_init(&dns_server, &gw);
+
+  sleep_ms(2000);
+  printf("Hotspot '%s' is now active.\n", ap_name);
+
+  int count = 0;
+  Read_Temperature reader;
+  Meter * meter_storage = Meter::get_singleton();
+
+  UDP_Client_Server server;    // make a metering/NTP server
+  printf("UDP server created\n");
   server.setup_udp_server();   // do the setup
+  printf("UDP server setup complete\n");
   server.setup_udp_service_broadcast(123);  // broadcast its location on the local network
-  printf("time server setup complete\n");
+  printf("broadcast of services 123 and 567 setup complete\n");
   multicore_launch_core1(core1_entry);
   while (true) {
     while(!rtc_ready) {
       sleep_ms(5);
     }
-    printf("Starting NTP server\n");
+    printf("Starting NTP and Metering server\n");
     server.run();
     printf("Error, should not have come back\n");
   }

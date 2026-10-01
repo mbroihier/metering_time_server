@@ -10,7 +10,9 @@
 #include <cstdint>
 #include <cstring>
 #include "hardware/rtc.h"
+#include "hardware/watchdog.h"
 #include "pico/util/datetime.h"
+#include "pico/util/queue.h"
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
 #include "lwip/ip_addr.h"
@@ -18,15 +20,19 @@
 #include "lwip/netif.h"
 #include "lwip/udp.h"
 #include "ntp_util.h"
+#include "Meter.h"
+#include "Read_Temperature.h"
 #ifndef UDP_CLIENT_SERVER_H_
 #define UDP_CLIENT_SERVER_H_
 
-#define UDP_TX_PACKET_MAX_SIZE 10000
-#define UDP_RX_PACKET_MAX_SIZE 10000
+#define UDP_TX_PACKET_MAX_SIZE 1000
+#define UDP_RX_PACKET_MAX_SIZE 1000
 
 // buffer for receiving and sending data
 static char packetBufferT[UDP_TX_PACKET_MAX_SIZE + 1];
 static char packetBufferR[UDP_RX_PACKET_MAX_SIZE + 1];
+static queue_t receiveMessageQueue;
+static queue_t receiveContextQueue;
 
 class UDP_Client_Server {
   //---------------------------------------------------------------------- */
@@ -54,14 +60,15 @@ class UDP_Client_Server {
   } UDP_T;
 
   UDP_T * state;
+  UDP_T * ntp_state;
   UDP_T * service_state;
   UDP_T * find_state;
 
   uint16_t service;
   ip_addr_t remote_address;
 
-  struct udp_pcb * pcb;
   struct udp_pcb * client_pcb;
+  struct udp_pcb * client_ntp_pcb;
   struct udp_pcb * service_pcb;
   struct udp_pcb * find_pcb;
 
@@ -75,12 +82,15 @@ class UDP_Client_Server {
   void setup_udp_client();
   void setup_udp_find_service(uint16_t service);
   void setup_udp_service_broadcast(uint16_t service);
-  void find_server();
+  bool find_server(uint32_t delay = 0);
   void run();
   void send_packet(ip_addr_t remote_ip_address, uint16_t remote_port, uint32_t reply_timeout,
                    uint8_t *buffer, int buffer_size);
   void broadcast_service(uint8_t *buffer, int buffer_size);
   void find();
   ip_addr_t get_remote_ip_addr() { return remote_address; }
+  uint8_t * get_packetBufferR_addr();
+  uint8_t * get_packetBufferT_addr();
+  UDP_Client_Server();
 };
 #endif  // UDP_CLIENT_SERVER_H_
