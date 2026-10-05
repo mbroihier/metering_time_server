@@ -457,6 +457,8 @@ void UDP_Client_Server::broadcast_service(uint8_t *buffer, int buffer_size) {
       } else {
         tryAgain = true;
       }
+    } else {
+      tryAgain = false;
     }
   } while (tryAgain);
       
