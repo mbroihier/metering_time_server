@@ -169,6 +169,124 @@ void core1_entry() {
   }
 }
 
+queue_t UDP_Client_Server::receiveMessageQueue;
+queue_t UDP_Client_Server::receiveContextQueue;
+char UDP_Client_Server::packetBufferT[UDP_TX_PACKET_MAX_SIZE + 1];
+char UDP_Client_Server::packetBufferR[UDP_RX_PACKET_MAX_SIZE + 1];
+
+class UDP_Server : public UDP_Client_Server {
+public:
+  void background(uint64_t &t) {
+    if ((time_us_64() - t) > 30000000) {
+      broadcast_services();
+      t = time_us_64();
+    }
+    sleep_ms(100);
+  }
+  void run() {
+    extern NTP_Util::NTPTime reference;
+    Meter * meter_singleton = Meter::get_singleton();
+    Read_Temperature reader;
+    udp_pcb * receivedByPCB[2];
+    udp_rxdata context_info[2];  // two ports being serviced
+    memset(&context_info, 0, sizeof(context_info));
+    cyw43_arch_lwip_begin();
+    int index = 0;
+    for (const auto& [port, tupple] : service_info) {
+      receivedByPCB[index] = service_info[port]->recv_data.pcb;
+      udp_recv(service_info[port]->recv_data.pcb, packet_receive, &context_info[index++]);  // setup to receive
+    }
+    cyw43_arch_lwip_end();
+    printf("udp server ready to receive messages at ports 123 and 567\n");
+    int old_packet_count = context_info[1].rx_cnt;
+    int old_ntp_packet_count = context_info[0].rx_cnt;
+    uint64_t last_time_broadcast = 0;
+    NTP_Util::NTPTime packet_receive_time = NTP_Util::make_reference_time();
+    int count = 0;
+    sleep_ms(5000);  // put in for wifi setup while it is in AP mode
+    meter_singleton->reset_count(Meter::TEMPERATURE);
+    printf("Entering service loop - examine messages and send information, %lu\n", NTP_Util::now());
+    while (true) {
+      while ((old_packet_count == context_info[1].rx_cnt) && (old_ntp_packet_count == context_info[0].rx_cnt)) {
+        cyw43_arch_lwip_begin();
+        cyw43_arch_poll();  // see if there is a udp packet
+        cyw43_arch_lwip_end();
+        packet_receive_time = NTP_Util::make_reference_time();
+        background(last_time_broadcast);
+        if (count++ == 1000) {
+          printf("Server waiting for message\n");
+          count = 0;
+        }
+      }
+      meter_singleton->set_temperature_int(reader.get_temperature_int());
+      printf("Service loop detected an incoming message\n");
+      if (context_info[1].rx_cnt != old_packet_count) {
+        old_packet_count = context_info[1].rx_cnt;
+        if (context_info[1].rx_bytes < 48 && packetBufferR[0] == 0) {
+          meter_singleton->increment_count(Meter::TEMPERATURE);
+          int64_t * packetPtr = reinterpret_cast<int64_t *>(packetBufferT);
+          *packetPtr++ = meter_singleton->get_temperature_int();
+          *packetPtr++ = meter_singleton->get_count(Meter::TEMPERATURE);
+          struct pbuf *reply_pbuf = pbuf_alloc(PBUF_TRANSPORT, sizeof(packetBufferT), PBUF_RAM);
+          reply_pbuf->next = 0;
+
+          memcpy(reply_pbuf->payload, packetBufferT, 16);
+          reply_pbuf->tot_len = 16;
+          reply_pbuf->len = 16;
+
+          cyw43_arch_lwip_begin();
+          int err = udp_sendto(receivedByPCB[1], reply_pbuf, &context_info[1].remote_ip_addr,
+                               context_info[1].remote_port);
+          printf("sent packet to %s port %d, status: %d\n", ip4addr_ntoa(&context_info[1].remote_ip_addr),
+                 context_info[1].remote_port, err);
+          cyw43_arch_lwip_end();
+          pbuf_free(reply_pbuf);
+        } else if (context_info[1].rx_bytes == 48) {  // this is an NTP packet
+          NTP_Util::translate_incoming_packet_to_outgoing_packet((NTP_Util::NTPPacket *)packetBufferR,
+                                                                 (NTP_Util::NTPPacket *)packetBufferT,
+                                                                 reference, packet_receive_time);
+          struct pbuf *reply_pbuf = pbuf_alloc(PBUF_TRANSPORT, sizeof(packetBufferT), PBUF_RAM);
+          reply_pbuf->next = 0;
+
+          memcpy(reply_pbuf->payload, packetBufferT, sizeof(NTP_Util::NTPPacket));
+          reply_pbuf->tot_len = sizeof(NTP_Util::NTPPacket);
+          reply_pbuf->len = sizeof(NTP_Util::NTPPacket);
+
+          cyw43_arch_lwip_begin();
+          int err = udp_sendto(receivedByPCB[0], reply_pbuf, &context_info[0].remote_ip_addr,
+                               context_info[0].remote_port);
+          printf("sent packet to %s port %d, status: %d\n", ip4addr_ntoa(&context_info[0].remote_ip_addr),
+                 context_info[0].remote_port, err);
+          cyw43_arch_lwip_end();
+          pbuf_free(reply_pbuf);
+        } else {
+          printf("Error in received UDP request - ignoring incoming packet\n");
+        }
+      } else {  // must be an NTP packet request
+        old_ntp_packet_count = context_info[0].rx_cnt;
+        NTP_Util::translate_incoming_packet_to_outgoing_packet((NTP_Util::NTPPacket *)packetBufferR,
+                                                               (NTP_Util::NTPPacket *)packetBufferT,
+                                                               reference, packet_receive_time);
+        struct pbuf *reply_pbuf = pbuf_alloc(PBUF_TRANSPORT, sizeof(packetBufferT), PBUF_RAM);
+        reply_pbuf->next = 0;
+
+        memcpy(reply_pbuf->payload, packetBufferT, sizeof(NTP_Util::NTPPacket));
+        reply_pbuf->tot_len = sizeof(NTP_Util::NTPPacket);
+        reply_pbuf->len = sizeof(NTP_Util::NTPPacket);
+
+        cyw43_arch_lwip_begin();
+        int err = udp_sendto(receivedByPCB[0], reply_pbuf, &context_info[0].remote_ip_addr,
+                             context_info[0].remote_port);
+        printf("sent packet to %s port %d, status: %d\n", ip4addr_ntoa(&context_info[0].remote_ip_addr),
+               context_info[0].remote_port, err);
+        cyw43_arch_lwip_end();
+        pbuf_free(reply_pbuf);
+      }
+    }
+  }
+};
+
+
 #define PIO0 0
 #define PIO1 1
 
@@ -182,35 +300,14 @@ int main() {
     return 1;
   }
   queue_init(&queue, 1, 4096);
-  
-  const char *ap_name = WIFI_SSID;
-  const char *password = WIFI_PASSWORD;
-  const uint PORT = UDP_PORT;
-
-  cyw43_arch_enable_ap_mode(ap_name, password, CYW43_AUTH_WPA2_AES_PSK);
-
-  ip4_addr_t mask;
-  ip4_addr_t gw;
-
-  IP4_ADDR(&gw, 192, 168, 4, 1);
-  IP4_ADDR(&mask, 255, 255, 255, 0);
-
-  dhcp_server_t dhcp_server;
-  dhcp_server_init(&dhcp_server, &gw, &mask);
-
-  dns_server_t dns_server;
-  dns_server_init(&dns_server, &gw);
-
-  sleep_ms(2000);
-  printf("Hotspot '%s' is now active.\n", ap_name);
-
+  UDP_Server server;    // make a metering/NTP server
+  server.setup_wifi_ap();
   int count = 0;
   Read_Temperature reader;
   Meter * meter_storage = Meter::get_singleton();
 
-  UDP_Client_Server server;    // make a metering/NTP server
   printf("UDP server created\n");
-  server.setup_udp_server();   // do the setup
+  server.setup_udp_server({UDP_PORT, UDP_PORT2});   // do the setup
   printf("UDP server setup complete\n");
   server.setup_udp_service_broadcast(123);  // broadcast its location on the local network
   printf("broadcast of services 123 and 567 setup complete\n");
