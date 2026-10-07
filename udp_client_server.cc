@@ -125,7 +125,7 @@ void UDP_Client_Server::setup_udp_client() {
 //---------------------------------------------------------------------- */
 //
 //
-// setup_udp_service_broadcast -     this class object supports the
+// setup_udp_service_broadcast -     this method supports the
 //                                   broadcasting of a UDP server that
 //                                   supports a service identified by
 //                                   port number
@@ -151,7 +151,7 @@ void UDP_Client_Server::setup_udp_service_broadcast(uint16_t service) {
 //---------------------------------------------------------------------- */
 //
 //
-// setup_udp_find_service -     this class object supports clients by
+// setup_udp_find_service -     this method supports clients by
 //                              finding servers that support the service
 //                              they want
 //
@@ -358,7 +358,6 @@ void UDP_Client_Server::broadcast_services() {
     cyw43_arch_lwip_end();
     printf("sending message: %hu\n", port);
     ip4_addr_t remote_ip_address;
-    //ip4addr_aton("192.168.1.255", &remote_ip_address);
     ip4addr_aton("255.255.255.255", &remote_ip_address);
     int retry = 0;
     bool tryAgain = false;
